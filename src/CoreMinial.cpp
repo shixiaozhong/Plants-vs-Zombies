@@ -1,7 +1,11 @@
 #include <algorithm>
 #include <iterator>
+#include <queue>
 
 #include "include/CoreMinimal.h"
+
+// 一个全局的World对象
+extern World mainWorld;
 
 void Component::Destruct() {
   _pOwner->UnRegisterComponent(this);
@@ -22,6 +26,9 @@ void SceneComponent::AttachTo(SceneComponent* par) {
   if (par != nullptr) {
     par->_children.emplace(this);
     _parent = par;
+
+    // 设置组件所属的对象
+    SetOwner(par->_pOwner);
   } else {
     // todo 出现失败情况
   }
@@ -31,6 +38,9 @@ void SceneComponent::DetachFrom(SceneComponent* par) {
   if (par != nullptr) {
     par->_children.erase(this);
     _parent = nullptr;
+
+    // 将组件与对象解绑
+    SetOwner(nullptr);
   } else {
     // todo 出现失败情况
   }
@@ -115,8 +125,31 @@ void Object::AttachTo(Object* par) {
 void Object::DetachFrom(Object* par) {
   if (par != nullptr) {
     par->_children.emplace(this);
-    _parent = par;
+    _parent = nullptr;
   } else {
     // todo 出现失败情况
+  }
+}
+
+void Object::Destory() {
+  if (_parent != nullptr) {
+    _parent->_children.erase(this);
+  }
+
+  // bfs的方式删除所有的对象
+  std::queue<Object*> objects_to_delete;
+  objects_to_delete.push(this);
+
+  while (!objects_to_delete.empty()) {
+    auto current_obj = objects_to_delete.front();
+    objects_to_delete.pop();
+
+    // 获取所有的子对象，添加到队列中
+    std::for_each(std::begin(current_obj->_children),
+                  std::end(current_obj->_children),
+                  [&](auto child) { objects_to_delete.push(child); });
+
+    // 添加到mainWorld的待删除队列中
+    mainWorld._GameObjects_to_delete.insert(current_obj);
   }
 }

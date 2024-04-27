@@ -6,15 +6,13 @@
 #include <ostream>
 #include <set>
 
-#define PI (3.1514926)
+#define PI (3.1415926)
 
 struct Vector2D {
   float _x;
   float _y;
 
   Vector2D(float x = 0, float y = 0) : _x(x), _y(y) {}
-
-  Vector2D(const Vector2D& other) : _x(other._x), _y(other._y) {}
 
   Vector2D operator+(const Vector2D& other) {
     return Vector2D{_x + other._x, _y + other._y};
@@ -87,7 +85,7 @@ class Component : public Base {
   virtual void Update() override;
 
   // 设置绑定对象
-  void setOwner(class Object* owner) { _pOwner = owner; }
+  void SetOwner(class Object* owner) { _pOwner = owner; }
 
   virtual void Destruct();
 
@@ -98,6 +96,8 @@ class Component : public Base {
 // 场景组件
 class SceneComponent : public Component {
  public:
+  virtual ~SceneComponent() {}
+
   virtual void Update() override;
 
   // 设置所属组件
@@ -134,6 +134,19 @@ class SceneComponent : public Component {
 
 class Object : public Base {
  public:
+  Object() {
+    // 设置根组件所属对象
+    _root->SetOwner(this);
+  }
+
+  ~Object() {
+    // 将对象的所有组件全部释放清除
+    std::for_each(std::begin(_components), std::end(_components),
+                  [](auto com) { delete com; });
+    // 释放根组件
+    delete _root;
+  }
+
   virtual void Update() override {
     std::for_each(std::begin(_components), end(_components),
                   [](auto child) { child->Update(); });
@@ -218,8 +231,12 @@ class Object : public Base {
   void AddPosition(const Vector2D& pos) { _root->AddPosition(pos); }
   void AddRotation(const float& rotation) { _root->AddRotation(rotation); }
 
+  // 从mainWorld中删除对象
+  void Destory();
+
  protected:
-  SceneComponent* _root = nullptr;  // 场景根组件，赋予场景属性
+  SceneComponent* const _root =
+      new SceneComponent();  // 场景根组件，赋予场景属性
 
  private:
   std::set<Component*> _components;  // 存储对象的所有组件
@@ -228,3 +245,35 @@ class Object : public Base {
   std::set<Object*> _children;
   Object* _parent = nullptr;
 };
+
+class GameInstance {};
+
+class Level : public Base {
+  virtual void Update() override;
+};
+
+// 不允许被继承
+class World final {
+  // 声明为友元函数
+  friend void Object::Destory();
+
+ private:
+  // 场景对象， UI，计时器
+  std::set<Object*> _GameObjects;
+  std::set<Object*> _GameObjects_to_delete;
+  std::set<class UserInterface*> _GameUIs;
+  std::set<class UserInterface*> _GameUIs_to_delete;
+  std::set<class Timer*> _GameTimers;
+
+  // 渲染碰撞计算容器
+  std::set<class LayerInterface*> _GameRenders;
+  std::set<class BoxCollider*> _GameColliders;
+
+  // 游戏单例对象
+  Level* _currentLevel = nullptr;
+  GameInstance* _gameInstance = nullptr;
+  class Controller* _mainController = nullptr;
+};
+
+// 创建一个全局Wrold对象，声明为extern，防止出现多个对象
+extern World mainWorld;
